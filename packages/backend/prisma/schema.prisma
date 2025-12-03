@@ -1,0 +1,33 @@
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+model FileSystemNode {
+    id        String   @id @default(uuid())
+    name      String
+    type      NodeType
+    parentId  String?  @map("parent_id")
+    size      BigInt?
+    mimeType  String?  @map("mime_type")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    parent   FileSystemNode?  @relation("FileSystemHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+    children FileSystemNode[] @relation("FileSystemHierarchy")
+
+    @@index([parentId])
+    @@index([name])
+    @@index([type])
+    @@index([parentId, type])
+    @@map("file_system_nodes")
+}
+
+enum NodeType {
+    FILE
+    FOLDER
+}
