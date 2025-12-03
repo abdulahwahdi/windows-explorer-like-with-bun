@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: windows_explorer_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: windows_explorer
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - windows_explorer_network
+
+  # Backend API
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    container_name: windows_explorer_backend
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/windows_explorer?schema=public"
+      NODE_ENV: "production"
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - windows_explorer_network
+    restart: unless-stopped
+    volumes:
+      - ./packages/backend/src:/app/src
+      - ./packages/backend/prisma:/app/prisma
+    command: sh -c "bunx prisma migrate deploy && bunx prisma generate && bun run src/infrastructure/database/seed.ts && bun run start"
+
+  # Frontend
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+    container_name: windows_explorer_frontend
+    environment:
+      VITE_API_URL: "http://localhost:3000"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - windows_explorer_network
+    restart: unless-stopped
+    volumes:
+      - ./packages/frontend/src:/app/src
+
+volumes:
+  postgres_data:
+
+networks:
+  windows_explorer_network:
+    driver: bridge
